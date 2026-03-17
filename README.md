@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -23,3 +24,7 @@ To deploy this app, you need to set the following environment variables in your 
 - `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
 
 Note: Ensure the deployment platform supports HTTPS, as the app uses camera access for QR scanning.
+=======
+# university-staff-dispatch
+A service that dispatches university students
+>>>>>>> a5068f4417b67e884e0b93091aeb13169c077f18
