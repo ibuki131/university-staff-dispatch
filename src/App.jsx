@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { registerStore, registerStudent, login } from './api'
 // ─── Supabase ────────────────────────────────────────────────
 // npm install @supabase/supabase-js qrcode.react html5-qrcode
 import { QRCodeSVG } from "qrcode.react";
@@ -8,15 +9,7 @@ import { QRCodeSVG } from "qrcode.react";
 // src/supabase.js を作成して以下を記入してください:
 // import { createClient } from '@supabase/supabase-js'
 // export const supabase = createClient('YOUR_URL', 'YOUR_ANON_KEY')
-let supabase = null;
-try {
-  // 動的インポート（supabase.jsが存在する場合のみ）
-  const mod = await import("./supabase.js").catch(() => null);
-  supabase = mod?.supabase ?? null;
-} catch (error) {
-  console.error('Failed to load supabase.js:', error);
-}
-
+import { supabase } from "./supabase.js";
 const USE_SUPABASE = !!supabase;
 
 // ============================================================
@@ -58,7 +51,6 @@ const generateQRToken = (shiftId, studentId) => {
 
 // QRトークンの有効期限（10分）
 const QR_EXPIRE_MS = 10 * 60 * 1000;
-
 // ============================================================
 // SUPABASE API LAYER（未設定時はモックにフォールバック）
 // ============================================================
@@ -394,7 +386,6 @@ function QRDisplay({ shiftId, studentId }) {
     </div>
   );
 }
-
 // ============================================================
 // QR SCANNER (camera)
 // ============================================================
@@ -432,7 +423,6 @@ function QRScanner({ onResult, onClose }) {
       instanceRef.current?.stop().catch(() => {});
     };
   }, [onResult]);
-
   return (
     <div className="scanner-overlay">
       {/* Header */}
@@ -477,7 +467,6 @@ function QRScanner({ onResult, onClose }) {
     </div>
   );
 }
-
 // ============================================================
 // TUTORIAL SCREEN
 // ============================================================
@@ -534,96 +523,127 @@ function TutorialScreen({ role, onFinish, fromSettings }) {
 // AUTH
 // ============================================================
 function AuthScreen({ onLogin }) {
-  const [mode, setMode] = useState("splash");
-  const [email,setEmail]=useState(""); const [pass,setPass]=useState("");
-  const [name,setName]=useState(""); const [storeName,setStoreName]=useState(""); const [uni,setUni]=useState("");
-  const [loading,setLoading]=useState(false); const [err,setErr]=useState("");
+  const [mode, setMode] = useState("login");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [uni, setUni] = useState("");
+  const [storeName, setStoreName] = useState("");
+  const [category, setCategory] = useState("");
+  const [address, setAddress] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [modeComplete, setModeComplete] = useState(false);
 
   const doLogin = async () => {
     setLoading(true); setErr("");
     try {
-      const { user } = await api.login(email, pass);
-      onLogin(user);
-    } catch(e) { setErr(e.message); } finally { setLoading(false); }
-  };
-  const doRegister = async () => {
-    setLoading(true); setErr("");
-    try {
-      const { user } = await api.register(email, pass, { name, university: uni, type: "student", avatar: "🧑‍🎓" });
-      onLogin(user);
-    } catch(e) { setErr(e.message); } finally { setLoading(false); }
-  };
-  const doStoreRegister = async () => {
-    setLoading(true); setErr("");
-    try {
-      const { user } = await api.register(email, pass, { name: storeName, type: "store", avatar: "🏪" });
-      onLogin(user);
-    } catch(e) { setErr(e.message); } finally { setLoading(false); }
+      const res = await login({ email, password: pass });
+      onLogin(res.user || res);
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (mode==="splash") return (
-    <div className="app" style={{ background:"linear-gradient(160deg,#0d0b00,#201500 60%,#0e0900 100%)",justifyContent:"space-between" }}>
-      <div style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 32px 24px" }}>
-        <div style={{ position:"relative",marginBottom:24 }}>
-          <div style={{ fontSize:80,filter:"drop-shadow(0 8px 28px rgba(255,149,0,0.55))" }}>🍱</div>
-          <div style={{ position:"absolute",top:-10,right:-14,background:"linear-gradient(135deg,#FF9500,#FFBC00)",borderRadius:99,padding:"4px 10px",fontSize:11,fontWeight:900,color:"#1a1000",fontFamily:"Outfit,sans-serif" }}>NEW</div>
+  const doRegister = async () => {
+    if (!name || !email || !pass || !uni) {
+      setErr('すべての項目を入力してください');
+      return;
+    }
+    setLoading(true); setErr("");
+    try {
+      await registerStudent({ name, email, password: pass, university: uni });
+      const res = await login({ email, password: pass });
+      onLogin(res.user || res);
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const doStoreRegister = async () => {
+    if (!storeName || !email || !pass) {
+      setErr('すべての項目を入力してください');
+      return;
+    }
+    setLoading(true); setErr("");
+    try {
+      await registerStore({ storeName, email, password: pass, category, address });
+      setModeComplete(true);
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (modeComplete) {
+    return (
+      <div className="app" style={{ justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 64, marginBottom: 20 }}>📨</div>
+          <div className="outfit fw-900" style={{ fontSize: 24, marginBottom: 12 }}>申請を受け付けました！</div>
+          <div style={{ color: 'var(--gray)', fontSize: 14, lineHeight: 1.8, marginBottom: 32 }}>
+            審査完了後（1〜2営業日）に<br/>
+            登録メールアドレスへご連絡します。<br/>
+            承認後にログインできるようになります。
+          </div>
+          <button className="btn btn-ghost" onClick={() => { setMode('login'); setModeComplete(false); }}>
+            ログイン画面へ
+          </button>
         </div>
-        <div style={{ fontFamily:"Outfit,sans-serif",fontSize:50,fontWeight:900,textAlign:"center",lineHeight:1,marginBottom:10,letterSpacing:"-1.5px" }}>Campus<span style={{ color:"var(--amber)" }}>Gig</span></div>
-        <div style={{ color:"var(--gray)",fontSize:14,textAlign:"center",lineHeight:1.75,marginBottom:28 }}>大学生と地域飲食店を<br/>リアルタイムでつなぐ単発バイト</div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,width:"100%" }}>
-          {[["📍","3km圏内でマッチ"],["⚡","今日から即働ける"],["⭐","信頼スコアで評価"],["🔒","安全なQRチェックイン"]].map(([e,t])=>(
-            <div key={t} style={{ background:"rgba(255,149,0,0.07)",border:"1px solid rgba(255,149,0,0.14)",borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:8 }}>
-              <span style={{ fontSize:18 }}>{e}</span><span style={{ fontSize:12,color:"var(--white2)",fontWeight:600,lineHeight:1.35 }}>{t}</span>
-            </div>
-          ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="app" style={{ justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+      <div style={{ width: 340, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 18, padding: 20 }}>
+        <h1 className="outfit fw-800" style={{ fontSize: 22, marginBottom: 12, textAlign: 'center' }}>CampusGig</h1>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <button className={`btn ${mode === 'login' ? 'btn-amber' : 'btn-ghost'} btn-sm`} style={{ flex: 1 }} onClick={() => setMode('login')}>ログイン</button>
+          <button className={`btn ${mode === 'register' ? 'btn-amber' : 'btn-ghost'} btn-sm`} style={{ flex: 1 }} onClick={() => setMode('register')}>学生登録</button>
+          <button className={`btn ${mode === 'store' ? 'btn-amber' : 'btn-ghost'} btn-sm`} style={{ flex: 1 }} onClick={() => setMode('store')}>店舗登録</button>
         </div>
-        {!USE_SUPABASE && (
-          <div style={{ marginTop:16,background:"rgba(255,188,0,0.08)",border:"1px solid rgba(255,188,0,0.2)",borderRadius:12,padding:"10px 14px",fontSize:12,color:"var(--amber)",textAlign:"center",lineHeight:1.6 }}>
-            ⚠️ デモモード（Supabase未設定）<br/>src/supabase.js を設定すると本番で動作します
+
+        {err && <div style={{ marginBottom: 12, color: 'var(--red)', fontSize: 12 }}>{err}</div>}
+
+        {mode !== 'store' && (
+          <div className="input-group" style={{ marginBottom: 10 }}>
+            {mode === 'register' && (
+              <><label className="input-label">氏名</label><input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="例：田中 蓮" /></>
+            )}
+            {mode === 'register' && (
+              <><label className="input-label">大学</label><input className="input" value={uni} onChange={e => setUni(e.target.value)} placeholder="例：東京大学" /></>
+            )}
+            <label className="input-label">メール</label>
+            <input className="input" value={email} onChange={e => setEmail(e.target.value)} type="email" />
+            <label className="input-label">パスワード</label>
+            <input className="input" value={pass} onChange={e => setPass(e.target.value)} type="password" />
           </div>
         )}
-      </div>
-      <div style={{ padding:"0 24px 48px",display:"flex",flexDirection:"column",gap:10 }}>
-        <button className="btn btn-amber" style={{ borderRadius:18,padding:"17px",fontSize:16 }} onClick={()=>setMode("login")}>ログイン</button>
-        <button className="btn btn-outline" style={{ borderRadius:18,padding:"15px" }} onClick={()=>setMode("register")}>新規アカウント登録</button>
-        <button className="btn btn-ghost" style={{ borderRadius:18,padding:"13px",fontSize:13 }} onClick={()=>setMode("storeRegister")}>🏪 店舗として登録する</button>
-      </div>
-    </div>
-  );
 
-  if (mode==="storeRegister") return (
-    <div className="app">
-      <div className="topbar"><button className="topbar-back" onClick={()=>setMode("splash")}>← 戻る</button><div className="topbar-title">店舗登録</div><div/></div>
-      <div className="scroll-area px-5 pt-6 pb-24">
-        <div style={{ background:"rgba(255,188,0,0.07)",border:"1px solid rgba(255,188,0,0.18)",borderRadius:14,padding:"12px 16px",marginBottom:24,display:"flex",gap:10 }}>
-          <span>⚠️</span><div style={{ fontSize:13,color:"var(--amber)",lineHeight:1.6 }}>審査完了後（1〜2営業日）にシフト作成が可能になります。</div>
-        </div>
-        <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
-          {[["店舗名","text","炉端焼き 北の大地",storeName,setStoreName],["メールアドレス","email","store@example.com",email,setEmail],["パスワード","password","8文字以上",pass,setPass]].map(([label,type,ph,val,set])=>(
-            <div key={label} className="input-group"><label className="input-label">{label}</label><input className="input" type={type} placeholder={ph} value={val} onChange={e=>set(e.target.value)}/></div>
-          ))}
-          {err && <div style={{ color:"var(--red)",fontSize:13 }}>{err}</div>}
-          <button className="btn btn-amber" style={{ marginTop:8 }} onClick={doStoreRegister} disabled={loading}>{loading?"送信中...":"審査申請を送信 →"}</button>
-        </div>
-      </div>
-    </div>
-  );
+        {mode === 'store' && (
+          <div className="input-group" style={{ marginBottom: 10 }}>
+            <label className="input-label">店舗名</label>
+            <input className="input" value={storeName} onChange={e => setStoreName(e.target.value)} placeholder="例：炉端焼き 北の大地" />
+            <label className="input-label">カテゴリ</label>
+            <input className="input" value={category} onChange={e => setCategory(e.target.value)} placeholder="例：居酒屋" />
+            <label className="input-label">住所</label>
+            <input className="input" value={address} onChange={e => setAddress(e.target.value)} placeholder="例：東京都千代田区" />
+            <label className="input-label">メール</label>
+            <input className="input" value={email} onChange={e => setEmail(e.target.value)} type="email" />
+            <label className="input-label">パスワード</label>
+            <input className="input" value={pass} onChange={e => setPass(e.target.value)} type="password" />
+          </div>
+        )}
 
-  const isLogin = mode==="login";
-  return (
-    <div className="app">
-      <div className="topbar"><button className="topbar-back" onClick={()=>setMode("splash")}>← 戻る</button><div className="topbar-title">{isLogin?"ログイン":"学生登録"}</div><div/></div>
-      <div className="scroll-area px-5 pt-6 pb-24">
-        <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
-          {!isLogin&&<div className="input-group"><label className="input-label">氏名</label><input className="input" type="text" placeholder="田中 蓮" value={name} onChange={e=>setName(e.target.value)}/></div>}
-          {!isLogin&&<div className="input-group"><label className="input-label">大学名</label><input className="input" type="text" placeholder="例：東京大学" value={uni} onChange={e=>setUni(e.target.value)}/></div>}
-          <div className="input-group"><label className="input-label">メールアドレス</label><input className="input" type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
-          <div className="input-group"><label className="input-label">パスワード</label><input className="input" type="password" placeholder="8文字以上" value={pass} onChange={e=>setPass(e.target.value)}/></div>
-          {err && <div style={{ color:"var(--red)",fontSize:13 }}>{err}</div>}
-          <button className="btn btn-amber" style={{ marginTop:8 }} onClick={isLogin?doLogin:doRegister} disabled={loading}>{loading?"処理中...":(isLogin?"ログイン →":"登録する →")}</button>
-          <div className="sep" style={{ marginTop:4 }}><span>{isLogin?"まだ登録していない方":"すでにアカウントをお持ちの方"}</span></div>
-          <button className="btn btn-ghost" onClick={()=>{ setErr(""); setMode(isLogin?"register":"login"); }}>{isLogin?"新規登録はこちら":"ログインはこちら"}</button>
-        </div>
+        <button className="btn btn-amber" style={{ width: '100%' }} onClick={mode === 'login' ? doLogin : mode === 'register' ? doRegister : doStoreRegister} disabled={loading}>
+          {loading ? '処理中...' : mode === 'login' ? 'ログイン' : mode === 'register' ? '登録して開始' : '店舗登録'}
+        </button>
       </div>
     </div>
   );
@@ -824,14 +844,21 @@ function CreateShiftScreen({ onBack, onCreate }) {
     </div>
   );
 }
-
 // ============================================================
 // STORE SHIFT MANAGE (with QR Scanner)
 // ============================================================
 function StoreShiftManage({ shift, onBack, onApprove, onComplete, onRate, showToast }) {
   const [tab, setTab] = useState("応募者");
   const [showScanner, setShowScanner] = useState(false);
-  const applicants = MOCK_STUDENTS.filter(s=>shift.applicants?.includes(s.id));
+  // ✅ これに変更（Supabaseから取得）
+const [applicants, setApplicants] = useState([]);
+useEffect(() => {
+  if (!supabase) return;
+  supabase.from("applications")
+    .select("*, users(*)")
+    .eq("shift_id", shift.id)
+    .then(({ data }) => setApplicants(data?.map(a => a.users) ?? []));
+}, [shift.id]);
 
   const handleScanResult = async (token) => {
     setShowScanner(false);
@@ -889,7 +916,6 @@ function StoreShiftManage({ shift, onBack, onApprove, onComplete, onRate, showTo
     </div>
   );
 }
-
 // ============================================================
 // STUDENT HOME
 // ============================================================
@@ -1057,7 +1083,7 @@ function StudentProfile({ user, onLogout, onShowTutorial }) {
 // STORE HOME
 // ============================================================
 function StoreHome({ user, shifts, onCreateShift, onManageShift }) {
-  const myShifts = shifts.filter(s=>s.store_id===user.id||s.store_id==="st1");
+  const myShifts = shifts.filter(s=>s.store_id===user.id);
   const todayShifts = myShifts.filter(s=>s.date===today);
   const upcoming = myShifts.filter(s=>s.date>today);
   return (
