@@ -10,7 +10,13 @@ import { QRCodeSVG } from "qrcode.react";
 // import { createClient } from '@supabase/supabase-js'
 // export const supabase = createClient('YOUR_URL', 'YOUR_ANON_KEY')
 import { supabase } from "./supabase.js";
-const USE_SUPABASE = !!supabase;
+const USE_SUPABASE = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+if (USE_SUPABASE) {
+  console.log('[Supabase] 有効');
+} else {
+  console.warn('[Supabase] 無効：VITE_SUPABASE_URL か VITE_SUPABASE_ANON_KEY が不足しています。');
+}
 
 // ============================================================
 // MOCK DATA（Supabase未設定時のフォールバック）

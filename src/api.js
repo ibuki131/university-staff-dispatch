@@ -58,14 +58,37 @@ export async function registerStudent({ name, email, password, university }) {
 }
 
 // ── ログイン ──────────────────────────────────────
-export async function login({ email, password }) {
-
+export async login({ email, password }) {
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
-  if (authError) throw new Error('メールアドレスまたはパスワードが違います')
+  // ここのエラーメッセージを変更
+  if (authError) throw new Error(authError.message)
 
+  const { data: profile } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', authData.user.id)
+    .single()
+
+  if (!profile) throw new Error('プロフィールが見つかりません')
+
+  if (profile.type === 'store') {
+    const { data: store } = await supabase
+      .from('stores')
+      .select('approved')
+      .eq('user_id', profile.id)
+      .single()
+
+    if (!store?.approved) {
+      throw new Error('審査中です。承認までしばらくお待ちください。')
+    }
+    return { ...profile, storeData: store }
+  }
+
+  return profile
+}
   // プロフィール取得
   const { data: profile } = await supabase
     .from('users')
